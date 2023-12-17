@@ -1,0 +1,141 @@
+﻿@page "/game"
+@page "/game/{GameId}/{GamerName}"
+
+@inject NavigationManager navigationManager;
+@using Microsoft.AspNetCore.SignalR.Client;
+
+<div class="container-fluid bg-gray-300">
+    <div class="row">
+        <div class="col-6">
+            <h3>Game</h3>
+            <div class="btn-toolbar mt-5" role="toolbar" aria-label="Toolbar with button groups">
+                <div class="btn-group me-2 btn-group-lg" role="group" aria-label="First group">
+                    <input type="button" value="1" class="btn btn-primary btn-lg" @onclick="args => Vote(1)" />
+                    <input type="button" value="2" class="btn btn-primary btn-lg" @onclick="args => Vote(2)" />
+                    <input type="button" value="3" class="btn btn-primary btn-lg" @onclick="args => Vote(3)" />
+                    <input type="button" value="5" class="btn btn-primary btn-lg" @onclick="args => Vote(5)" />
+                </div>
+                <div class="btn-group me-2 btn-group-lg" role="group" aria-label="Second group">
+                    <input type="button" value="8" class="btn btn-warning btn-lg" @onclick="args => Vote(8)" />
+                    <input type="button" value="13" class="btn btn-warning btn-lg" @onclick="args => Vote(13)" />
+                    <input type="button" value="20" class="btn btn-warning btn-lg" @onclick="args => Vote(20)" />
+                </div>
+                <div class="btn-group btn-group-lg" role="group" aria-label="Third group">
+                    <input type="button" value="40" class="btn btn-danger btn-lg" @onclick="args => Vote(40)" />
+                    <input type="button" value="100" class="btn btn-danger btn-lg" @onclick="args => Vote(100)" />
+                </div>
+            </div>
+        </div>
+        <div class="col-3">
+            <h3>Result</h3>
+
+            <div class="btn-group mt-5" role="group" aria-label="Basic outlined example">
+                <input type="button" value="Show Results" class="btn btn-outline-primary" @onclick="@ShowResults" />
+                <input type="button" value="Reset" class="btn btn-outline-primary" @onclick="@Reset" />
+            </div>
+
+            <div class="@(!showResults ? "d-none" : string.Empty)">
+                <h3><span class="badge bg-success mb-3 mt-3">@voteAverage</span></h3>
+
+                <div style="height:50vh; overflow-y:scroll;">
+                    <ul id="transaction" class="list-group">
+                        @foreach (var vote in votes)
+                        {
+                            <li class="list-group-item">@vote.Key : @vote.Value</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+            
+        </div>
+        <div class="col-3">
+            <h3>Transactions</h3>
+            <div style="height:80vh; overflow-y:scroll;">
+                <ul id="transaction" class="list-group mt-5">
+                    @foreach (var transaction in transactions)
+                    {
+                        <li class="list-group-item">@transaction</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions{
+    [Parameter]
+    public string GameId { get; set; }
+    [Parameter]
+    public string GamerName { get; set; }
+}
+
+@code {
+    HubConnection connection;
+    List<string> transactions = new();
+    Dictionary<string, int> votes = new();
+    double voteAverage = 0.0;
+    bool showResults = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        string baseUrl = navigationManager.BaseUri;
+
+        string _hubUrl = baseUrl.TrimEnd('/') + "/scrumPokerHub";
+
+        connection = new HubConnectionBuilder().WithUrl(_hubUrl).Build();
+        connection.On<string, int>("UpdateVotes", this.UpdateVotes);
+        await connection.StartAsync();
+
+        AddTransaction($"{GamerName} joined the game.");
+        StateHasChanged();
+    }
+
+    async Task Vote(int vote)
+    {
+        await connection.InvokeAsync("Vote", GameId, vote);
+    }
+
+    Task UpdateVotes(string gameId, int vote)
+    {
+        if(gameId == GameId)
+        {
+            AddTransaction($"{GamerName} voted the game.");
+            votes.Add(GamerName, vote);
+            StateHasChanged();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    void Reset()
+    {
+        AddTransaction($"{GamerName} reset the game.");
+        votes.Clear();
+        showResults = false;
+    }
+
+    void ShowResults()
+    {
+        if (votes.Any())
+        {
+            CalculateVoteAverage();
+            AddTransaction($"{GamerName} showed the results.");
+            showResults = true;
+        }
+        else
+    {
+
+    }
+    }
+
+    void CalculateVoteAverage()
+    {
+        voteAverage = (double)votes.Sum(s => s.Value) / votes.Count;
+    }
+
+    void AddTransaction(string transaction)
+    {
+        transactions.Insert(0, transaction);
+    }
+}
+
