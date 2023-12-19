@@ -30,8 +30,8 @@
             <h3>Result</h3>
 
             <div class="btn-group mt-5" role="group" aria-label="Basic outlined example">
-                <input type="button" value="Show Results" class="btn btn-outline-primary" @onclick="@ShowResults" />
-                <input type="button" value="Reset" class="btn btn-outline-primary" @onclick="@Reset" />
+                <input type="button" value="Show Results" class="btn btn-outline-primary" @onclick="@ShowResultsClick" />
+                <input type="button" value="Reset" class="btn btn-outline-primary" @onclick="@ResetClick" />
             </div>
 
             <div class="@(!showResults ? "d-none" : string.Empty)">
@@ -72,9 +72,9 @@
 @code {
     HubConnection connection;
     List<string> transactions = new();
-    Dictionary<string, int> votes = new();
     double voteAverage = 0.0;
     bool showResults = false;
+    Dictionary<string, int> votes = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -83,59 +83,67 @@
         string _hubUrl = baseUrl.TrimEnd('/') + "/scrumPokerHub";
 
         connection = new HubConnectionBuilder().WithUrl(_hubUrl).Build();
-        connection.On<string, int>("UpdateVotes", this.UpdateVotes);
+        connection.On<string, string>("InformEveryone", this.InformEveryone);
+        connection.On<string>("Reset", this.Reset);
+        connection.On<string, Dictionary<string, int>>("ShowResults", this.ShowResults);
         await connection.StartAsync();
 
-        AddTransaction($"{GamerName} joined the game.");
+        await connection.InvokeAsync("NewGamerJoined", GameId, GamerName);
         StateHasChanged();
     }
 
     async Task Vote(int vote)
     {
-        await connection.InvokeAsync("Vote", GameId, vote);
+        await connection.InvokeAsync("Vote", GameId, GamerName, vote);
     }
 
-    Task UpdateVotes(string gameId, int vote)
+    async Task ResetClick()
     {
-        if(gameId == GameId)
+        await connection.InvokeAsync("Reset", GameId, GamerName);
+    }
+
+    async Task ShowResultsClick()
+    {
+        await connection.InvokeAsync("ShowResults", GameId, GamerName);
+    }
+
+    Task Reset(string gameId)
+    {
+        if (gameId == GameId)
         {
-            AddTransaction($"{GamerName} voted the game.");
-            votes.Add(GamerName, vote);
+            this.votes.Clear();
+            showResults = false;
+            StateHasChanged();
+        }
+        return Task.CompletedTask;
+    }
+
+    Task ShowResults(string gameId, Dictionary<string, int> votes)
+    {
+        if (gameId == GameId)
+        {
+            this.votes = votes;
+            CalculateVoteAverage(votes);
+            showResults = true;
             StateHasChanged();
         }
 
         return Task.CompletedTask;
     }
 
-    void Reset()
+    Task InformEveryone(string gameId, string message)
     {
-        AddTransaction($"{GamerName} reset the game.");
-        votes.Clear();
-        showResults = false;
-    }
-
-    void ShowResults()
-    {
-        if (votes.Any())
+        if (gameId == GameId)
         {
-            CalculateVoteAverage();
-            AddTransaction($"{GamerName} showed the results.");
-            showResults = true;
+            transactions.Insert(0, message);
+            StateHasChanged();
         }
-        else
-    {
-
-    }
+        return Task.CompletedTask;
     }
 
-    void CalculateVoteAverage()
+    void CalculateVoteAverage(Dictionary<string, int> votes)
     {
         voteAverage = (double)votes.Sum(s => s.Value) / votes.Count;
-    }
-
-    void AddTransaction(string transaction)
-    {
-        transactions.Insert(0, transaction);
     }
 }
 

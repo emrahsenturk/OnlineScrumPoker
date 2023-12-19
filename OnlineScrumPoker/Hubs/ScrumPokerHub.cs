@@ -1,31 +1,56 @@
 ﻿using System;
+using System.Transactions;
 using Microsoft.AspNetCore.SignalR;
+using OnlineScrumPoker.Pages;
 
 namespace OnlineScrumPoker.Hubs;
 
 public class ScrumPokerHub : Hub
 {
-    public override Task OnConnectedAsync()
-    {
-        //Clients.All.SendAsync("ReceiveMessage", "system", $"{Context.ConnectionId} joined the online scrum poker.");
+    private readonly Dictionary<string, int> votes;
 
-        return base.OnConnectedAsync();
+    public ScrumPokerHub()
+    {
+        votes = new();
+    }
+
+    public override Task OnConnectedAsync()
+    {return base.OnConnectedAsync();
     }
 
     public override Task OnDisconnectedAsync(Exception? exception)
     {
-        //Clients.All.SendAsync("ReceiveMessage", "system", $"{Context.ConnectionId} left the online scrum poker.");
-
         return base.OnDisconnectedAsync(exception);
-    }
+    }  
 
     public void StartNewGame()
     {
         Clients.All.SendAsync("NavigateToGame", Guid.NewGuid());
     }
 
-    public void Vote(string gameId, int vote)
+    public void NewGamerJoined(string gameId, string gamerName)
     {
-        Clients.All.SendAsync("UpdateVotes", gameId, vote);
+        Clients.All.SendAsync("InformEveryone", gameId, $"{gamerName} joined the game.");
+    }
+
+    public void Vote(string gameId, string gamerName, int vote)
+    {
+        votes.Add(gamerName, vote);
+
+        Clients.All.SendAsync("InformEveryone", gameId, $"{gamerName} voted the game.");
+    }
+
+    public void Reset(string gameId, string gamerName)
+    {
+        votes.Clear();
+
+        Clients.All.SendAsync("Reset", gameId);
+        Clients.All.SendAsync("InformEveryone", gameId, $"{gamerName} reset the game.");
+    }
+
+    public void ShowResults(string gameId, string gamerName)
+    {
+        Clients.All.SendAsync("ShowResults", gameId, votes);
+        Clients.All.SendAsync("InformEveryone", gameId, $"{gamerName} showed the results.");
     }
 }
