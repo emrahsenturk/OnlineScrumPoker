@@ -1,14 +1,19 @@
 ﻿@page "/game"
 
 @inject NavigationManager navigationManager;
+@inject IToastService toastService
 @using Microsoft.AspNetCore.SignalR.Client;
+@using Blazored.Toast.Configuration
+
+<BlazoredToasts Position="ToastPosition.BottomRight"
+                Timeout="5" />
 
 <div class="container-fluid bg-gray-300">
     <div class="row @(startGame ? "d-none" : string.Empty)">
         <div class="col-12">
             <input type="text" id="gamerName" class="form-control" @bind="@gamerName" placeholder="Gamer name" />
             <br />
-            <input type="text" id="gameId" class="form-control" @bind="@gameId" placeholder="Game id" />
+            <input type="text" id="gameId" class="form-control" @bind="@gameId" placeholder="Game id (You must leave this field blank when creating a new game.)" />
             <br />
             <input type="button" value="Connect to Game" class="btn btn-outline-primary" @onclick="@ConnectToGame" />
         </div>
@@ -17,7 +22,7 @@
         <div class="col-6">
             <h3>Game</h3>
             <span>Game id : @gameId</span>
-            <div class="btn-toolbar mt-5" role="toolbar" aria-label="Toolbar with button groups">
+            <div class="btn-toolbar mt-4" role="toolbar" aria-label="Toolbar with button groups">
                 <div class="btn-group me-2 btn-group-lg" role="group" aria-label="First group">
                     <input type="button" value="1" class="btn btn-primary btn-lg" @onclick="args => Vote(1)" />
                     <input type="button" value="2" class="btn btn-primary btn-lg" @onclick="args => Vote(2)" />
@@ -34,6 +39,27 @@
                     <input type="button" value="100" class="btn btn-danger btn-lg" @onclick="args => Vote(100)" />
                 </div>
             </div>
+
+            <div class="row mt-5">
+                <div class="col">
+                    <h3>Messages</h3>
+                    <div class="input-group mb-3">
+                        <input type="text" id="message" class="form-control" @bind="@message" placeholder="Message" />
+                        <button class="btn btn-outline-secondary" type="button" @onclick="@SendMessage">Send</button>
+                    </div>
+
+                    <div class="mt-3" style="height:40vh; overflow-y:scroll;">
+                        <ul id="transaction" class="list-group">
+                            @foreach (var message in messages)
+                            {
+                                <li class="list-group-item">
+                                    @message
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="col-3">
             <h3>Result</h3>
@@ -46,7 +72,7 @@
             <div>
                 <h3 class="@(!showResults ? "d-none" : string.Empty)">
                     <span class="badge bg-success mb-3 mt-3 mr-3">
-                        Average: 
+                        Average:
                         @if (showResults)
                         {
                             @voteAverage
@@ -66,9 +92,9 @@
                         <span>@consensusText</span>
                     }
                 </h3>
-             
 
-                <div class="mt-3" style="height:50vh; overflow-y:scroll;">
+
+                <div class="mt-3" style="height:60vh; overflow-y:scroll;">
                     <ul id="transaction" class="list-group">
                         @foreach (var vote in votes)
                         {
@@ -116,6 +142,8 @@
     double voteAverage = 0.0;
     bool showResults = false;
     Dictionary<string, int> votes = new();
+    string message = string.Empty;
+    List<string> messages = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -127,7 +155,8 @@
         connection.On<string, string, string>("AddNewGamerVoteToEveryone", this.AddNewGamerVoteToEveryone);
         connection.On<string, Dictionary<string, int>>("UpdateVotesForNewGamer", this.UpdateVotesForNewGamer);
         connection.On<string, List<string>>("UpdateTransactionsForNewGamer", this.UpdateTransactionsForNewGamer);
-        connection.On<string, string>("InformEveryone", this.InformEveryone);
+        connection.On<string, string>("InformTransactions", this.InformTransactions);
+        connection.On<string, string>("InformMessages", this.InformMessages);
         connection.On<string>("Reset", this.Reset);
         connection.On<string>("ShowResults", this.ShowResults);
         connection.On<string, Dictionary<string, int>>("UpdateVotes", this.UpdateVotes);
@@ -137,9 +166,6 @@
 
     async Task AddNewGamerVoteToEveryone(string gameId, string gamerName, string connectionId)
     {
-        if (!CheckGame(gameId))
-            return;
-
         bool isExist = votes.TryGetValue(gamerName, out int outVote);
         if (!isExist)
         {
@@ -157,16 +183,13 @@
 
         if (connectionId != connection.ConnectionId)
         {
-            await connection.InvokeAsync("SendCurrentVotes", this.gameId, connectionId, votes);
-            await connection.InvokeAsync("SendCurrentTransactions", this.gameId, connectionId, transactions);
+            await connection.InvokeAsync("SendCurrentVotes", this.gameId, votes);
+            await connection.InvokeAsync("SendCurrentTransactions", this.gameId, transactions);
         }
     }
 
     Task UpdateVotesForNewGamer(string gameId, Dictionary<string, int> updatedVotes)
     {
-        if (!CheckGame(gameId))
-            return Task.CompletedTask;
-
         this.votes = updatedVotes;
         StateHasChanged();
         return Task.CompletedTask;
@@ -174,9 +197,6 @@
 
     Task UpdateTransactionsForNewGamer(string gameId, List<string> updatedTransactions)
     {
-        if (!CheckGame(gameId))
-            return Task.CompletedTask;
-
         this.transactions = updatedTransactions;
         StateHasChanged();
         return Task.CompletedTask;
@@ -184,6 +204,12 @@
 
     async Task ConnectToGame()
     {
+        if (string.IsNullOrWhiteSpace(this.gamerName))
+        {
+            toastService.ShowWarning("Player name cannot be empty!");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(this.gameId))
         {
             this.gameId = Guid.NewGuid().ToString();
@@ -240,9 +266,6 @@
 
     Task Reset(string gameId)
     {
-        if (!CheckGame(gameId))
-            return Task.CompletedTask;
-
         foreach (var vote in votes)
         {
             votes[vote.Key] = defaultVote;
@@ -256,9 +279,6 @@
 
     Task ShowResults(string gameId)
     {
-        if (!CheckGame(gameId))
-            return Task.CompletedTask;
-
         CalculateVoteAverage(votes);
         showResults = true;
         StateHasChanged();
@@ -266,12 +286,9 @@
         return Task.CompletedTask;
     }
 
-    Task InformEveryone(string gameId, string message)
+    Task InformTransactions(string gameId, string transaction)
     {
-        if (!CheckGame(gameId))
-            return Task.CompletedTask;
-
-        transactions.Insert(0, message);
+        transactions.Insert(0, transaction);
         StateHasChanged();
 
         return Task.CompletedTask;
@@ -289,13 +306,18 @@
         }
     }
 
-    bool CheckGame(string gameId)
+    async Task SendMessage()
     {
-        if (gameId == this.gameId)
-        {
-            return true;
-        }
-        return false;
+        await connection.InvokeAsync("SendMessage", this.gameId, gamerName, this.message);
+    }
+
+    Task InformMessages(string gamerName, string message)
+    {
+        messages.Insert(0, $"{gamerName}: {message}");
+        this.message = string.Empty;
+        StateHasChanged();
+
+        return Task.CompletedTask;
     }
 }
 

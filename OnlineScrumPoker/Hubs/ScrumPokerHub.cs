@@ -26,12 +26,12 @@ public class ScrumPokerHub : Hub
         await Clients.Group(gameId).SendAsync("AddNewGamerVoteToEveryone", gameId, gamerName, connectionId);
     }
 
-    public async Task SendCurrentVotes(string gameId, string connectionId, Dictionary<string, int> votes)
+    public async Task SendCurrentVotes(string gameId, Dictionary<string, int> votes)
     {
         await Clients.Group(gameId).SendAsync("UpdateVotesForNewGamer", gameId, votes);
     }
 
-    public async Task SendCurrentTransactions(string gameId, string connectionId, List<string> transactions)
+    public async Task SendCurrentTransactions(string gameId, List<string> transactions)
     {
         await Clients.Group(gameId).SendAsync("UpdateTransactionsForNewGamer", gameId, transactions);
     }
@@ -44,18 +44,24 @@ public class ScrumPokerHub : Hub
     public void Vote(string gameId, string gamerName, int vote, Dictionary<string, int> votes)
     {
         Clients.Group(gameId).SendAsync("UpdateVotes", gameId, votes);
-        Clients.Group(gameId).SendAsync("InformEveryone", gameId, $"{gamerName} voted the game.");
+        Clients.Group(gameId).SendAsync("InformTransactions", gameId, $"{gamerName} voted the game.");
     }
 
     public void Reset(string gameId, string gamerName)
     {
         Clients.Group(gameId).SendAsync("Reset", gameId);
-        Clients.Group(gameId).SendAsync("InformEveryone", gameId, $"{gamerName} reset the game.");
+        Clients.Group(gameId).SendAsync("InformTransactions", gameId, $"{gamerName} reset the game.");
     }
 
     public void ShowResults(string gameId, string gamerName)
     {
         Clients.Group(gameId).SendAsync("ShowResults", gameId);
-        Clients.Group(gameId).SendAsync("InformEveryone", gameId, $"{gamerName} showed the results.");
+        Clients.Group(gameId).SendAsync("InformTransactions", gameId, $"{gamerName} showed the results.");
+    }
+
+    public void SendMessage(string gameId, string gamerName, string message)
+    {
+        Clients.Group(gameId).SendAsync("InformMessages", gamerName, message);
+        Clients.Group(gameId).SendAsync("InformTransactions", gameId, $"{gamerName} sent the message.");
     }
 }

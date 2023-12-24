@@ -1,6 +1,6 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using Blazored.Toast;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using OnlineScrumPoker.Data;
 using OnlineScrumPoker.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddSignalR();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSingleton<WeatherForecastService>();
+builder.Services.AddBlazoredToast();
 
 var app = builder.Build();
 
