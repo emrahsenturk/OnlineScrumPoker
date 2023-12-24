@@ -7,11 +7,8 @@ namespace OnlineScrumPoker.Hubs;
 
 public class ScrumPokerHub : Hub
 {
-    private readonly Dictionary<string, int> votes;
-
     public ScrumPokerHub()
     {
-        votes = new();
     }
 
     public override Task OnConnectedAsync()
@@ -23,34 +20,42 @@ public class ScrumPokerHub : Hub
         return base.OnDisconnectedAsync(exception);
     }  
 
-    public void StartNewGame()
+    public async Task NewGamerJoined(string gameId, string gamerName, string connectionId)
     {
-        Clients.All.SendAsync("NavigateToGame", Guid.NewGuid());
+        await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
+        await Clients.Group(gameId).SendAsync("AddNewGamerVoteToEveryone", gameId, gamerName, connectionId);
     }
 
-    public void NewGamerJoined(string gameId, string gamerName)
+    public async Task SendCurrentVotes(string gameId, string connectionId, Dictionary<string, int> votes)
     {
-        Clients.All.SendAsync("InformEveryone", gameId, $"{gamerName} joined the game.");
+        await Clients.Group(gameId).SendAsync("UpdateVotesForNewGamer", gameId, votes);
     }
 
-    public void Vote(string gameId, string gamerName, int vote)
+    public async Task SendCurrentTransactions(string gameId, string connectionId, List<string> transactions)
     {
-        votes.Add(gamerName, vote);
+        await Clients.Group(gameId).SendAsync("UpdateTransactionsForNewGamer", gameId, transactions);
+    }
 
-        Clients.All.SendAsync("InformEveryone", gameId, $"{gamerName} voted the game.");
+    public void SendVotesToEveryone(string gameId, Dictionary<string, int> votes)
+    {
+        Clients.Group(gameId).SendAsync("UpdateVotes", gameId, votes);
+    }
+
+    public void Vote(string gameId, string gamerName, int vote, Dictionary<string, int> votes)
+    {
+        Clients.Group(gameId).SendAsync("UpdateVotes", gameId, votes);
+        Clients.Group(gameId).SendAsync("InformEveryone", gameId, $"{gamerName} voted the game.");
     }
 
     public void Reset(string gameId, string gamerName)
     {
-        votes.Clear();
-
-        Clients.All.SendAsync("Reset", gameId);
-        Clients.All.SendAsync("InformEveryone", gameId, $"{gamerName} reset the game.");
+        Clients.Group(gameId).SendAsync("Reset", gameId);
+        Clients.Group(gameId).SendAsync("InformEveryone", gameId, $"{gamerName} reset the game.");
     }
 
     public void ShowResults(string gameId, string gamerName)
     {
-        Clients.All.SendAsync("ShowResults", gameId, votes);
-        Clients.All.SendAsync("InformEveryone", gameId, $"{gamerName} showed the results.");
+        Clients.Group(gameId).SendAsync("ShowResults", gameId);
+        Clients.Group(gameId).SendAsync("InformEveryone", gameId, $"{gamerName} showed the results.");
     }
 }

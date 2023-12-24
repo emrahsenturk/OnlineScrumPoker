@@ -1,13 +1,22 @@
 ﻿@page "/game"
-@page "/game/{GameId}/{GamerName}"
 
 @inject NavigationManager navigationManager;
 @using Microsoft.AspNetCore.SignalR.Client;
 
 <div class="container-fluid bg-gray-300">
-    <div class="row">
+    <div class="row @(startGame ? "d-none" : string.Empty)">
+        <div class="col-12">
+            <input type="text" id="gamerName" class="form-control" @bind="@gamerName" placeholder="Gamer name" />
+            <br />
+            <input type="text" id="gameId" class="form-control" @bind="@gameId" placeholder="Game id" />
+            <br />
+            <input type="button" value="Connect to Game" class="btn btn-outline-primary" @onclick="@ConnectToGame" />
+        </div>
+    </div>
+    <div class="row @(!startGame ? "d-none" : string.Empty)">
         <div class="col-6">
             <h3>Game</h3>
+            <span>Game id : @gameId</span>
             <div class="btn-toolbar mt-5" role="toolbar" aria-label="Toolbar with button groups">
                 <div class="btn-group me-2 btn-group-lg" role="group" aria-label="First group">
                     <input type="button" value="1" class="btn btn-primary btn-lg" @onclick="args => Vote(1)" />
@@ -34,19 +43,51 @@
                 <input type="button" value="Reset" class="btn btn-outline-primary" @onclick="@ResetClick" />
             </div>
 
-            <div class="@(!showResults ? "d-none" : string.Empty)">
-                <h3><span class="badge bg-success mb-3 mt-3">@voteAverage</span></h3>
+            <div>
+                <h3 class="@(!showResults ? "d-none" : string.Empty)">
+                    <span class="badge bg-success mb-3 mt-3 mr-3">
+                        Average: 
+                        @if (showResults)
+                        {
+                            @voteAverage
+                        }
+                        else
+                        {
+                            @hiddenVote;
+                        }
 
-                <div style="height:50vh; overflow-y:scroll;">
+                    </span>
+                </h3>
+
+                <h3 class="text-danger mb-3 @(!showResults ? "d-none" : string.Empty)">
+                    @if (showConsensus)
+                    {
+                        <span class="oi oi-heart" aria-hidden="true"></span>
+                        <span>@consensusText</span>
+                    }
+                </h3>
+             
+
+                <div class="mt-3" style="height:50vh; overflow-y:scroll;">
                     <ul id="transaction" class="list-group">
                         @foreach (var vote in votes)
                         {
-                            <li class="list-group-item">@vote.Key : @vote.Value</li>
+                            <li class="list-group-item">
+                                @vote.Key :
+                                @if (showResults)
+                                {
+                                    @vote.Value
+                                }
+                                else if (vote.Value != 0)
+                                {
+                                    @hiddenVote;
+                                }
+                            </li>
                         }
                     </ul>
                 </div>
             </div>
-            
+
         </div>
         <div class="col-3">
             <h3>Transactions</h3>
@@ -62,16 +103,16 @@
     </div>
 </div>
 
-@functions{
-    [Parameter]
-    public string GameId { get; set; }
-    [Parameter]
-    public string GamerName { get; set; }
-}
-
 @code {
+    bool startGame = false;
+    string gamerName = string.Empty;
+    string gameId = string.Empty;
+    string hiddenVote = "*";
+    bool showConsensus = false;
+    string consensusText = "CONSENSUS";
     HubConnection connection;
     List<string> transactions = new();
+    int defaultVote = 0;
     double voteAverage = 0.0;
     bool showResults = false;
     Dictionary<string, int> votes = new();
@@ -83,67 +124,178 @@
         string _hubUrl = baseUrl.TrimEnd('/') + "/scrumPokerHub";
 
         connection = new HubConnectionBuilder().WithUrl(_hubUrl).Build();
+        connection.On<string, string, string>("AddNewGamerVoteToEveryone", this.AddNewGamerVoteToEveryone);
+        connection.On<string, Dictionary<string, int>>("UpdateVotesForNewGamer", this.UpdateVotesForNewGamer);
+        connection.On<string, List<string>>("UpdateTransactionsForNewGamer", this.UpdateTransactionsForNewGamer);
         connection.On<string, string>("InformEveryone", this.InformEveryone);
         connection.On<string>("Reset", this.Reset);
-        connection.On<string, Dictionary<string, int>>("ShowResults", this.ShowResults);
-        await connection.StartAsync();
+        connection.On<string>("ShowResults", this.ShowResults);
+        connection.On<string, Dictionary<string, int>>("UpdateVotes", this.UpdateVotes);
 
-        await connection.InvokeAsync("NewGamerJoined", GameId, GamerName);
+        await connection.StartAsync();
+    }
+
+    async Task AddNewGamerVoteToEveryone(string gameId, string gamerName, string connectionId)
+    {
+        if (!CheckGame(gameId))
+            return;
+
+        bool isExist = votes.TryGetValue(gamerName, out int outVote);
+        if (!isExist)
+        {
+            votes.Add(gamerName, defaultVote);
+        }
+        else
+        {
+            votes[gamerName] = defaultVote;
+        }
+
+        if (!transactions.Any() || (transactions.Count > 0 && transactions[transactions.Count - 1] != $"{gamerName} joined the game."))
+        {
+            transactions.Insert(0, $"{gamerName} joined the game.");
+        }
+
+        if (connectionId != connection.ConnectionId)
+        {
+            await connection.InvokeAsync("SendCurrentVotes", this.gameId, connectionId, votes);
+            await connection.InvokeAsync("SendCurrentTransactions", this.gameId, connectionId, transactions);
+        }
+    }
+
+    Task UpdateVotesForNewGamer(string gameId, Dictionary<string, int> updatedVotes)
+    {
+        if (!CheckGame(gameId))
+            return Task.CompletedTask;
+
+        this.votes = updatedVotes;
         StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    Task UpdateTransactionsForNewGamer(string gameId, List<string> updatedTransactions)
+    {
+        if (!CheckGame(gameId))
+            return Task.CompletedTask;
+
+        this.transactions = updatedTransactions;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    async Task ConnectToGame()
+    {
+        if (string.IsNullOrWhiteSpace(this.gameId))
+        {
+            this.gameId = Guid.NewGuid().ToString();
+        }
+
+        await connection.InvokeAsync("NewGamerJoined", this.gameId, gamerName, connection.ConnectionId);
+        startGame = true;
     }
 
     async Task Vote(int vote)
     {
-        await connection.InvokeAsync("Vote", GameId, GamerName, vote);
+        bool isExist = votes.TryGetValue(gamerName, out int outVote);
+        if (!isExist)
+        {
+            votes.Add(gamerName, vote);
+        }
+        else
+        {
+            votes[gamerName] = vote;
+        }
+
+        await connection.InvokeAsync("Vote", this.gameId, gamerName, vote, votes);
     }
 
     async Task ResetClick()
     {
-        await connection.InvokeAsync("Reset", GameId, GamerName);
+        await connection.InvokeAsync("Reset", this.gameId, gamerName);
     }
 
     async Task ShowResultsClick()
     {
-        await connection.InvokeAsync("ShowResults", GameId, GamerName);
+        await connection.InvokeAsync("ShowResults", this.gameId, gamerName);
+    }
+
+    Task UpdateVotes(string gameId, Dictionary<string, int> updatedVotes)
+    {
+        bool isExist = updatedVotes.TryGetValue(gamerName, out int outVote);
+        if (!isExist)
+        {
+            updatedVotes.Add(gamerName, defaultVote);
+        }
+
+        this.votes = updatedVotes;
+
+        if (showResults)
+        {
+            CalculateVoteAverage(votes);
+        }
+
+        StateHasChanged();
+
+        return Task.CompletedTask;
     }
 
     Task Reset(string gameId)
     {
-        if (gameId == GameId)
+        if (!CheckGame(gameId))
+            return Task.CompletedTask;
+
+        foreach (var vote in votes)
         {
-            this.votes.Clear();
-            showResults = false;
-            StateHasChanged();
+            votes[vote.Key] = defaultVote;
         }
+        showResults = false;
+        voteAverage = 0.0;
+        StateHasChanged();
+
         return Task.CompletedTask;
     }
 
-    Task ShowResults(string gameId, Dictionary<string, int> votes)
+    Task ShowResults(string gameId)
     {
-        if (gameId == GameId)
-        {
-            this.votes = votes;
-            CalculateVoteAverage(votes);
-            showResults = true;
-            StateHasChanged();
-        }
+        if (!CheckGame(gameId))
+            return Task.CompletedTask;
+
+        CalculateVoteAverage(votes);
+        showResults = true;
+        StateHasChanged();
 
         return Task.CompletedTask;
     }
 
     Task InformEveryone(string gameId, string message)
     {
-        if (gameId == GameId)
-        {
-            transactions.Insert(0, message);
-            StateHasChanged();
-        }
+        if (!CheckGame(gameId))
+            return Task.CompletedTask;
+
+        transactions.Insert(0, message);
+        StateHasChanged();
+
         return Task.CompletedTask;
     }
 
     void CalculateVoteAverage(Dictionary<string, int> votes)
     {
-        voteAverage = (double)votes.Sum(s => s.Value) / votes.Count;
+        var willCalculateVotes = votes.Where(q => q.Value != 0).Select(s => s.Value).ToList();
+        voteAverage = (double)willCalculateVotes.Sum(s => s) / willCalculateVotes.Count;
+
+        showConsensus = false;
+        if (willCalculateVotes.DistinctBy(d => d).Count() == 1)
+        {
+            showConsensus = true;
+        }
+    }
+
+    bool CheckGame(string gameId)
+    {
+        if (gameId == this.gameId)
+        {
+            return true;
+        }
+        return false;
     }
 }
 
