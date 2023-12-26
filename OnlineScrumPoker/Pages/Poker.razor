@@ -1,4 +1,4 @@
-﻿@page "/game"
+﻿@page "/poker"
 
 @inject NavigationManager navigationManager;
 @inject IToastService toastService
@@ -145,24 +145,24 @@
     string message = string.Empty;
     List<string> messages = new();
 
-    protected override async Task OnInitializedAsync()
-    {
-        string baseUrl = navigationManager.BaseUri;
+    //protected override async Task OnInitializedAsync()
+    //{
+    //    string baseUrl = navigationManager.BaseUri;
 
-        string _hubUrl = baseUrl.TrimEnd('/') + "/scrumPokerHub";
+    //    string _hubUrl = baseUrl.TrimEnd('/') + "/scrumPokerHub";
 
-        connection = new HubConnectionBuilder().WithUrl(_hubUrl).Build();
-        connection.On<string, string, string>("AddNewGamerVoteToEveryone", this.AddNewGamerVoteToEveryone);
-        connection.On<string, Dictionary<string, int>>("UpdateVotesForNewGamer", this.UpdateVotesForNewGamer);
-        connection.On<string, List<string>>("UpdateTransactionsForNewGamer", this.UpdateTransactionsForNewGamer);
-        connection.On<string, string>("InformTransactions", this.InformTransactions);
-        connection.On<string, string>("InformMessages", this.InformMessages);
-        connection.On<string>("Reset", this.Reset);
-        connection.On<string>("ShowResults", this.ShowResults);
-        connection.On<string, Dictionary<string, int>>("UpdateVotes", this.UpdateVotes);
+    //    connection = new HubConnectionBuilder().WithUrl(_hubUrl).Build();
+    //    connection.On<string, string, string>("AddNewGamerVoteToEveryone", this.AddNewGamerVoteToEveryone);
+    //    connection.On<string, Dictionary<string, int>>("UpdateVotesForNewGamer", this.UpdateVotesForNewGamer);
+    //    connection.On<string, List<string>>("UpdateTransactionsForNewGamer", this.UpdateTransactionsForNewGamer);
+    //    connection.On<string, string>("InformTransactions", this.InformTransactions);
+    //    connection.On<string, string>("InformMessages", this.InformMessages);
+    //    connection.On<string>("Reset", this.Reset);
+    //    connection.On<string>("ShowResults", this.ShowResults);
+    //    connection.On<string, Dictionary<string, int>>("UpdateVotes", this.UpdateVotes);
 
-        await connection.StartAsync();
-    }
+    //    await connection.StartAsync();
+    //}
 
     async Task AddNewGamerVoteToEveryone(string gameId, string gamerName, string connectionId)
     {
@@ -215,8 +215,29 @@
             this.gameId = Guid.NewGuid().ToString();
         }
 
+        await Connect();
+
         await connection.InvokeAsync("NewGamerJoined", this.gameId, gamerName, connection.ConnectionId);
         startGame = true;
+    }
+
+    private async Task Connect()
+    {
+        string baseUrl = navigationManager.BaseUri;
+
+        string _hubUrl = baseUrl.TrimEnd('/') + "/scrumPokerHub";
+
+        connection = new HubConnectionBuilder().WithUrl(_hubUrl).Build();
+        connection.On<string, string, string>("AddNewGamerVoteToEveryone", this.AddNewGamerVoteToEveryone);
+        connection.On<string, Dictionary<string, int>>("UpdateVotesForNewGamer", this.UpdateVotesForNewGamer);
+        connection.On<string, List<string>>("UpdateTransactionsForNewGamer", this.UpdateTransactionsForNewGamer);
+        connection.On<string, string>("InformTransactions", this.InformTransactions);
+        connection.On<string, string>("InformMessages", this.InformMessages);
+        connection.On<string>("Reset", this.Reset);
+        connection.On<string>("ShowResults", this.ShowResults);
+        connection.On<string, Dictionary<string, int>>("UpdateVotes", this.UpdateVotes);
+
+        await connection.StartAsync();
     }
 
     async Task Vote(int vote)
