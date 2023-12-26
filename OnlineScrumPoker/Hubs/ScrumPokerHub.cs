@@ -1,27 +1,27 @@
 ﻿using System;
 using System.Transactions;
 using Microsoft.AspNetCore.SignalR;
+using OnlineScrumPoker.Helper;
 using OnlineScrumPoker.Pages;
 
 namespace OnlineScrumPoker.Hubs;
 
 public class ScrumPokerHub : Hub
 {
-    public ScrumPokerHub()
-    {
-    }
-
     public override Task OnConnectedAsync()
-    {return base.OnConnectedAsync();
+    {
+        return base.OnConnectedAsync();
     }
 
     public override Task OnDisconnectedAsync(Exception? exception)
     {
+        GameStatistics.GamerList.Remove(Context.ConnectionId);
         return base.OnDisconnectedAsync(exception);
-    }  
+    }
 
     public async Task NewGamerJoined(string gameId, string gamerName, string connectionId)
     {
+        GameStatistics.GamerList.Add(Context.ConnectionId);
         await Groups.AddToGroupAsync(Context.ConnectionId, gameId);
         await Clients.Group(gameId).SendAsync("AddNewGamerVoteToEveryone", gameId, gamerName, connectionId);
     }

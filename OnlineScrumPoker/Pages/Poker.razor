@@ -8,6 +8,28 @@
 <BlazoredToasts Position="ToastPosition.BottomRight"
                 Timeout="5" />
 
+<nav class="navbar navbar-light bg-light mb-3">
+    <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">Scrum Poker</span>
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            @if (!string.IsNullOrWhiteSpace(gamerName))
+            {
+                <li class="nav-item">
+                    <small class="navbar-text">Gamer name: @gamerName</small>
+                </li>
+            }
+            @if (!string.IsNullOrWhiteSpace(gameId))
+            {
+                <li class="nav-item">
+                    <small class="navbar-text">Game id: @gameId</small>
+                </li>
+            }
+        </ul>
+        
+        
+    </div>
+</nav>
+
 <div class="container-fluid bg-gray-300">
     <div class="row @(startGame ? "d-none" : string.Empty)">
         <div class="col-12">
@@ -19,9 +41,8 @@
         </div>
     </div>
     <div class="row @(!startGame ? "d-none" : string.Empty)">
-        <div class="col-6">
-            <h3>Game</h3>
-            <span>Game id : @gameId</span>
+        <div class="col-6 border border-light p-3">
+            <h5>Game</h5>
             <div class="btn-toolbar mt-4" role="toolbar" aria-label="Toolbar with button groups">
                 <div class="btn-group me-2 btn-group-lg" role="group" aria-label="First group">
                     <input type="button" value="1" class="btn btn-primary btn-lg" @onclick="args => Vote(1)" />
@@ -40,15 +61,15 @@
                 </div>
             </div>
 
-            <div class="row mt-5">
+            <div class="row border border-light p-3 mt-5">
                 <div class="col">
-                    <h3>Messages</h3>
+                    <h5>Messages</h5>
                     <div class="input-group mb-3">
                         <input type="text" id="message" class="form-control" @bind="@message" placeholder="Message" />
                         <button class="btn btn-outline-secondary" type="button" @onclick="@SendMessage">Send</button>
                     </div>
 
-                    <div class="mt-3" style="height:40vh; overflow-y:scroll;">
+                    <div class="mt-3" style="height:35vh; overflow-y:scroll;">
                         <ul id="transaction" class="list-group">
                             @foreach (var message in messages)
                             {
@@ -61,10 +82,10 @@
                 </div>
             </div>
         </div>
-        <div class="col-3">
-            <h3>Result</h3>
+        <div class="col-3 border border-light p-3">
+            <h5>Result</h5>
 
-            <div class="btn-group mt-5" role="group" aria-label="Basic outlined example">
+            <div class="btn-group mt-3" role="group" aria-label="Basic outlined example">
                 <input type="button" value="Show Results" class="btn btn-outline-primary" @onclick="@ShowResultsClick" />
                 <input type="button" value="Reset" class="btn btn-outline-primary" @onclick="@ResetClick" />
             </div>
@@ -94,7 +115,7 @@
                 </h3>
 
 
-                <div class="mt-3" style="height:60vh; overflow-y:scroll;">
+                <div class="mt-3" style="height:50vh; overflow-y:scroll;">
                     <ul id="transaction" class="list-group">
                         @foreach (var vote in votes)
                         {
@@ -115,10 +136,10 @@
             </div>
 
         </div>
-        <div class="col-3">
-            <h3>Transactions</h3>
-            <div style="height:80vh; overflow-y:scroll;">
-                <ul id="transaction" class="list-group mt-5">
+        <div class="col-3 border border-light p-3">
+            <h5>Transactions</h5>
+            <div style="height:70vh; overflow-y:scroll;">
+                <ul id="transaction" class="list-group mt-3">
                     @foreach (var transaction in transactions)
                     {
                         <li class="list-group-item">@transaction</li>
@@ -144,25 +165,6 @@
     Dictionary<string, int> votes = new();
     string message = string.Empty;
     List<string> messages = new();
-
-    //protected override async Task OnInitializedAsync()
-    //{
-    //    string baseUrl = navigationManager.BaseUri;
-
-    //    string _hubUrl = baseUrl.TrimEnd('/') + "/scrumPokerHub";
-
-    //    connection = new HubConnectionBuilder().WithUrl(_hubUrl).Build();
-    //    connection.On<string, string, string>("AddNewGamerVoteToEveryone", this.AddNewGamerVoteToEveryone);
-    //    connection.On<string, Dictionary<string, int>>("UpdateVotesForNewGamer", this.UpdateVotesForNewGamer);
-    //    connection.On<string, List<string>>("UpdateTransactionsForNewGamer", this.UpdateTransactionsForNewGamer);
-    //    connection.On<string, string>("InformTransactions", this.InformTransactions);
-    //    connection.On<string, string>("InformMessages", this.InformMessages);
-    //    connection.On<string>("Reset", this.Reset);
-    //    connection.On<string>("ShowResults", this.ShowResults);
-    //    connection.On<string, Dictionary<string, int>>("UpdateVotes", this.UpdateVotes);
-
-    //    await connection.StartAsync();
-    //}
 
     async Task AddNewGamerVoteToEveryone(string gameId, string gamerName, string connectionId)
     {
