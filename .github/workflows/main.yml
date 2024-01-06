@@ -1,4 +1,4 @@
-name: Deploy OnlineScrumPoker to GitHub Pages
+name: Deploy OnlineScrumPoker1 to GitHub Pages
 # Run workflow on every push to the master branch
 on:
   push:
