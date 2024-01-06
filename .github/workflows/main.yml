@@ -20,3 +20,10 @@ jobs:
     # publishes Blazor project to the release-folder
     - name: Publish .NET Core Project
       run: dotnet publish OnlineScrumPoker.csproj -c Release -o release --nologo
+
+    - name: Commit wwwroot to GitHub Pages
+      uses: JamesIves/github-pages-deploy-action@3.7.1
+      with:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BRANCH: publish-branch
+        FOLDER: release/wwwroot
