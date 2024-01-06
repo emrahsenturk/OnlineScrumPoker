@@ -3,6 +3,8 @@ name: Deploy OnlineScrumPoker1 to GitHub Pages
 on:
   push:
     branches: [ main ]
+permissions:
+  contents: write
 jobs:
   deploy-to-github-pages:
     # use ubuntu-latest image to run steps on
